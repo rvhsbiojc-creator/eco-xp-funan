@@ -6,9 +6,9 @@
 'use strict';
 
 const CONFIG = {
-  SCRIPT_URL: 'PASTE_YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE',
-  EVENT_DATE_STAMP: '20260627',
-  TEACHER_PIN_LOCAL_KEY: 'ecoXpTeacherPin',
+  SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbwHLCHdv3oQwPXgcRPiqxTZ3c8QmSrh3dd6dU2Y6rHytZjrBiGKjEhds2bX4_HwLjDN/exec',
+  EVENT_DATE_STAMP: '20260703',
+  TEACHER_PIN_LOCAL_KEY: 'TESLA2026',
   STORAGE_KEY: 'ecoXpFunanState_v1',
   TEACHER_BASE_LABEL: 'Teachers\' Base',
   PHOTO_REQUIRED_STATIONS: ['S1', 'S2', 'S5'],
