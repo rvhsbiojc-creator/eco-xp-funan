@@ -6,12 +6,13 @@
 'use strict';
 
 const CONFIG = {
-  SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbwHLCHdv3oQwPXgcRPiqxTZ3c8QmSrh3dd6dU2Y6rHytZjrBiGKjEhds2bX4_HwLjDN/exec',
-  EVENT_DATE_STAMP: '20260703',
+  SCRIPT_URL: 'PASTE_YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE',
+  EVENT_DATE_STAMP: '20260627',
   TEACHER_PIN_LOCAL_KEY: 'ecoXpTeacherPin',
   STORAGE_KEY: 'ecoXpFunanState_v1',
   TEACHER_BASE_LABEL: 'Teachers\' Base',
-  PHOTO_REQUIRED_STATIONS: ['S1', 'S2', 'S5']
+  PHOTO_REQUIRED_STATIONS: ['S1', 'S2', 'S5'],
+  PHOTO_BYPASS_ENABLED: true
 };
 
 const ROUTES = {
@@ -137,7 +138,7 @@ Look for the name of this place.
 Using its name, enter:
 - the 2nd letter of the first word; and
 - the 4th letter of the second word.`,
-      placeholder: 'e.g. r m',
+      placeholder: '',
       validator: value => normalize(value).replace(/[^a-z]/g, '') === 'rm',
       expected: 'rm'
     },
@@ -218,7 +219,7 @@ Is this choice truly better, or just greener-looking?`,
     hints: ['This checkpoint is inside a shop.', 'Look for a shop with many eco-themed products from different brands.', 'The shop name includes the idea of a group or collection.', 'Find The Green Collective SG at Funan.'],
     checkin: {
       prompt: 'Look at the main shop sign. Enter the second word on the shop sign.',
-      placeholder: 'Recce-dependent answer',
+      placeholder: '',
       validator: value => {
         const v = normalize(value);
         return ['green', 'collective'].includes(v) || v.length > 0; // loosened until recce confirms exact sign.
@@ -301,7 +302,7 @@ Should we ride, push, walk beside it… or rethink it?`,
     hints: ['Look for markings on the floor.', 'This checkpoint is linked to bicycles.', 'Look around the main shopping level.', 'Find the visible cycling route on Level 1.'],
     checkin: {
       prompt: 'Find the cycling route rule sign. Complete the speed limit shown:',
-      placeholder: '____ km/h',
+      placeholder: '',
       unit: 'km/h',
       validator: value => ['10', 'ten'].includes(normalize(value)),
       expected: '10'
@@ -398,7 +399,7 @@ Find the doorway to a different kind of stay.`,
     hints: ['This checkpoint is linked to staying, not just shopping.', 'Look for signs that Funan is connected to accommodation.', 'The checkpoint can be reached from inside Funan or through a dedicated lift area.', 'Find the lyf Funan Singapore entrance or lobby.'],
     checkin: {
       prompt: 'Look for the logo at this checkpoint. Enter the three-letter word shown on the logo.',
-      placeholder: 'Three-letter word',
+      placeholder: '',
       validator: value => normalize(value) === 'lyf',
       expected: 'lyf'
     },
@@ -527,6 +528,7 @@ function defaultState() {
     checkinUnlocked: {},
     stationData: {},
     photos: {},
+    photoBypasses: {},
     upgrades: {},
     learningCards: {},
     stampLayers: {},
@@ -637,6 +639,9 @@ function mockBackend(action, payload) {
   if (action === 'getDashboard') {
     return buildMockDashboard();
   }
+  if (action === 'verifyTeacherPin') {
+    return { ok: true, mock: true };
+  }
   return { ok: true, mock: true };
 }
 
@@ -666,8 +671,20 @@ function completedCount() {
   return Object.keys(state.completed || {}).length;
 }
 
-function photoCount() {
+function uploadedPhotoCount() {
   return Object.values(state.photos || {}).filter(Boolean).length;
+}
+
+function bypassPhotoCount() {
+  return Object.values(state.photoBypasses || {}).filter(Boolean).length;
+}
+
+function photoCount() {
+  return uploadedPhotoCount() + bypassPhotoCount();
+}
+
+function hasPhotoEvidence(code) {
+  return Boolean((state.photos || {})[code] || (state.photoBypasses || {})[code]);
 }
 
 function progressDots() {
@@ -951,7 +968,7 @@ function renderCheckin() {
       <p>${lines(station.checkin.prompt)}</p>
       <label for="checkinAnswer">Your answer</label>
       <div class="grid ${station.checkin.unit ? 'two' : ''}">
-        <input id="checkinAnswer" type="text" placeholder="${escapeHtml(station.checkin.placeholder || '')}" autocomplete="off" />
+        <input id="checkinAnswer" type="text" ${station.checkin.placeholder ? `placeholder="${escapeHtml(station.checkin.placeholder)}"` : ''} autocomplete="off" />
         ${station.checkin.unit ? `<div class="section-card"><strong>${escapeHtml(station.checkin.unit)}</strong></div>` : ''}
       </div>
       <div class="actions"><button class="primary-btn" id="submitCheckin">Submit Check-in</button><button class="ghost-btn" id="checkinBack">Back</button></div>
@@ -1098,7 +1115,15 @@ function renderProductStep(step) {
 
 function renderPhotoStep(step, withCaption) {
   const data = stationData()[step.key] || {};
-  const photo = state.photos[currentStationCode()];
+  const code = currentStationCode();
+  const photo = state.photos[code];
+  const bypass = (state.photoBypasses || {})[code];
+  const satisfied = Boolean(photo || bypass);
+  const statusHtml = photo
+    ? `<span class="badge ok">Photo uploaded: ${escapeHtml(photo.fileName)}</span>${photo.preview ? `<img src="${photo.preview}" class="file-preview" alt="Uploaded photo preview" />` : ''}`
+    : bypass
+      ? `<span class="badge warning">Teacher bypass used: no photo uploaded</span><small>${escapeHtml(bypass.reason || 'Photo upload bypassed by teacher.')}</small>`
+      : '<span class="badge warning">Photo required for this checkpoint</span>';
   return `
     <h3>${escapeHtml(step.title)}</h3>
     <div class="bob-speech">${lines(step.text)}</div>
@@ -1106,9 +1131,13 @@ function renderPhotoStep(step, withCaption) {
     <div class="file-input">
       <label for="photoInput">Upload group photo</label>
       <input id="photoInput" type="file" accept="image/*" />
-      ${photo ? `<span class="badge ok">Photo uploaded: ${escapeHtml(photo.fileName)}</span>${photo.preview ? `<img src="${photo.preview}" class="file-preview" alt="Uploaded photo preview" />` : ''}` : '<span class="badge warning">Photo required for this checkpoint</span>'}
+      ${statusHtml}
     </div>
-    <div class="actions"><button class="primary-btn" id="uploadPhotoBtn">${photo ? 'Replace Photo' : 'Upload Photo'}</button><button class="secondary-btn" data-next ${photo ? '' : 'disabled'}>Continue</button></div>`;
+    <div class="actions">
+      <button class="primary-btn" id="uploadPhotoBtn">${photo ? 'Replace Photo' : 'Upload Photo'}</button>
+      ${CONFIG.PHOTO_BYPASS_ENABLED ? '<button class="ghost-btn" id="teacherPhotoBypassBtn">Teacher bypass if upload fails</button>' : ''}
+      <button class="secondary-btn" data-next ${satisfied ? '' : 'disabled'}>Continue</button>
+    </div>`;
 }
 
 function renderLowerCarbonDayStep(step) {
@@ -1217,13 +1246,13 @@ async function handleStepNext(step) {
       data[step.key] = { name, category: $('#productCategory').value };
     }
     if (step.type === 'photoCaption') {
-      if (!state.photos[code]) return showToast('Please upload the required photo first.');
+      if (!hasPhotoEvidence(code)) return showToast('Please upload the required photo first, or ask a teacher to bypass it.');
       const caption = $('#captionInput').value.trim();
       if (!caption) return showToast('Please write the photo caption.');
       data[step.key] = { ...(data[step.key] || {}), caption };
     }
     if (step.type === 'photoOnly') {
-      if (!state.photos[code]) return showToast('Please upload the required photo first.');
+      if (!hasPhotoEvidence(code)) return showToast('Please upload the required photo first, or ask a teacher to bypass it.');
       data[step.key] = { ...(data[step.key] || {}), photoUploaded: true };
     }
     if (step.type === 'lowerCarbonDay') {
@@ -1289,6 +1318,7 @@ function buildStationSubmission(code) {
     stationTitle: STATIONS[code].title,
     data: stationData(code),
     photo: state.photos[code] || null,
+    photoBypass: (state.photoBypasses || {})[code] || null,
     completedAt: new Date().toISOString()
   };
 }
@@ -1313,6 +1343,7 @@ function serializeProgress() {
     photoCount: photoCount(),
     completed: state.completed,
     photos: state.photos,
+    photoBypasses: state.photoBypasses || {},
     upgrades: state.upgrades,
     learningCards: state.learningCards,
     stampLayers: state.stampLayers,
@@ -1350,7 +1381,8 @@ async function handlePhotoUpload(step) {
       preview: dataUrl,
       mock: Boolean(result.mock)
     };
-    stationData(code)[step.key] = { ...(stationData(code)[step.key] || {}), photoUploaded: true, fileName: state.photos[code].fileName, driveLink: state.photos[code].driveLink };
+    if (state.photoBypasses) delete state.photoBypasses[code];
+    stationData(code)[step.key] = { ...(stationData(code)[step.key] || {}), photoUploaded: true, photoBypassed: false, fileName: state.photos[code].fileName, driveLink: state.photos[code].driveLink };
     saveState();
     await safeSaveProgress();
     showToast('Photo uploaded successfully.');
@@ -1386,10 +1418,75 @@ function showUploadFailureModal(code, message) {
     <small>${escapeHtml(message || '')}</small>
     <label for="helpMessage">Help message</label>
     <textarea id="helpMessage" readonly>${escapeHtml(msg)}</textarea>
-    <div class="actions"><button class="primary-btn" id="retryUpload">Retry Upload</button><button class="secondary-btn" id="copyHelp">Copy Help Message</button><button class="ghost-btn" id="closeModal">Close</button></div>`);
+    <div class="actions">
+      <button class="primary-btn" id="retryUpload">Retry Upload</button>
+      <button class="secondary-btn" id="copyHelp">Copy Help Message</button>
+      ${CONFIG.PHOTO_BYPASS_ENABLED ? '<button class="danger-btn" id="teacherBypassFromError">Teacher bypass upload</button>' : ''}
+      <button class="ghost-btn" id="closeModal">Close</button>
+    </div>`);
   $('#retryUpload').addEventListener('click', () => { closeModal(); renderMissionStep(); });
   $('#copyHelp').addEventListener('click', () => copyText($('#helpMessage').value));
+  if ($('#teacherBypassFromError')) $('#teacherBypassFromError').addEventListener('click', () => { closeModal(); showTeacherPhotoBypassModal(currentStep()); });
   $('#closeModal').addEventListener('click', () => { closeModal(); renderMissionStep(); });
+}
+
+function currentStep() {
+  const station = STATIONS[currentStationCode()];
+  return station?.steps?.[state.activeStep] || null;
+}
+
+function showTeacherPhotoBypassModal(step) {
+  const code = currentStationCode();
+  if (!step || !['photoCaption', 'photoOnly'].includes(step.type)) return showToast('Photo bypass is only available on photo upload steps.');
+  const data = stationData(code)[step.key] || {};
+  showModal(`
+    <span class="kicker">Teacher bypass</span>
+    <h2>Bypass photo upload?</h2>
+    <p>Use this only when a teacher or game master has checked that the team attempted the photo task but upload cannot complete.</p>
+    <label for="bypassPin">Teacher PIN</label>
+    <input id="bypassPin" type="password" autocomplete="off" />
+    <label for="bypassReason">Reason / teacher note</label>
+    <input id="bypassReason" type="text" value="Photo upload failed after retry. Teacher approved bypass." />
+    <div class="actions"><button class="danger-btn" id="confirmBypass">Confirm Teacher Bypass</button><button class="ghost-btn" id="cancelBypass">Cancel</button></div>`);
+  $('#confirmBypass').addEventListener('click', () => applyPhotoBypass(step));
+  $('#cancelBypass').addEventListener('click', () => { closeModal(); renderMissionStep(); });
+}
+
+async function applyPhotoBypass(step) {
+  const code = currentStationCode();
+  const pin = $('#bypassPin')?.value.trim() || '';
+  const reason = $('#bypassReason')?.value.trim() || 'Teacher approved photo upload bypass.';
+  if (!pin) return showToast('Enter the teacher PIN.');
+  if (step.type === 'photoCaption') {
+    const caption = $('#captionInput')?.value.trim() || stationData(code)[step.key]?.caption || '';
+    if (!caption) {
+      closeModal();
+      renderMissionStep();
+      return showToast('Please write the caption before requesting teacher bypass.');
+    }
+    stationData(code)[step.key] = { ...(stationData(code)[step.key] || {}), caption };
+  }
+  closeModal();
+  showLoading('Checking teacher bypass…');
+  try {
+    await backend('verifyTeacherPin', { teacherPin: pin });
+    state.photoBypasses = state.photoBypasses || {};
+    state.photoBypasses[code] = {
+      station: code,
+      reason,
+      approvedAt: new Date().toISOString()
+    };
+    stationData(code)[step.key] = { ...(stationData(code)[step.key] || {}), photoUploaded: false, photoBypassed: true, bypassReason: reason };
+    saveState();
+    try { await backend('saveIssue', { station: code, issueType: 'Photo bypass', message: makeHelpMessage('photo', code) + `\n\nTeacher bypass reason: ${reason}`, status: 'Bypassed' }); } catch (ignore) {}
+    await safeSaveProgress();
+    showToast('Teacher bypass saved. Team can continue.');
+    closeModal();
+    renderMissionStep();
+  } catch (err) {
+    showToast(err.message || 'Teacher PIN could not be verified.');
+    renderMissionStep();
+  }
 }
 
 function showSaveFailureModal(code, message) {
@@ -1566,7 +1663,7 @@ function renderFinalScreen() {
       <p><strong>Team:</strong> ${escapeHtml(state.teamName)}<br><strong>Group:</strong> ${escapeHtml(state.group)}</p>
       <div class="grid two">
         <div class="section-card"><span class="badge ok">Stations cleared: 5 / 5</span></div>
-        <div class="section-card"><span class="badge ok">Photo uploads: ${photoCount()} / 3</span></div>
+        <div class="section-card"><span class="badge ok">Photo requirement: ${photoCount()} / 3</span></div>
         <div class="section-card"><span class="badge ok">Learning cards: ${Object.keys(state.learningCards).length} / 5</span></div>
         <div class="section-card"><span class="badge ok">Status: Complete</span></div>
       </div>
@@ -1576,7 +1673,7 @@ function renderFinalScreen() {
       <h3>Show this screen to your teacher.</h3>
       <div class="actions"><button class="secondary-btn" id="copySummary">Copy Completion Summary</button></div>
     </section>`;
-  $('#copySummary').addEventListener('click', () => copyText(`Eco XP complete\nGroup: ${state.group}\nTeam: ${state.teamName}\nStations cleared: 5/5\nPhotos uploaded: ${photoCount()}/3`));
+  $('#copySummary').addEventListener('click', () => copyText(`Eco XP complete\nGroup: ${state.group}\nTeam: ${state.teamName}\nStations cleared: 5/5\nPhoto requirement: ${photoCount()}/3 (uploaded ${uploadedPhotoCount()}, bypassed ${bypassPhotoCount()})`));
 }
 
 function renderTeacherLoginOrDashboard() {
@@ -1621,7 +1718,7 @@ async function renderTeacherDashboard() {
       ${data.error ? `<p class="badge issue">${escapeHtml(data.error)}</p>` : ''}
       <div class="actions row"><button class="secondary-btn" id="refreshDash">Refresh</button><button class="ghost-btn" id="clearPin">Change PIN</button></div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Group</th><th>Team</th><th>Current</th><th>Completed</th><th>Photos</th><th>Last save</th><th>Status</th></tr></thead>
+        <thead><tr><th>Group</th><th>Team</th><th>Current</th><th>Completed</th><th>Photo evidence</th><th>Last save</th><th>Status</th></tr></thead>
         <tbody>${groups.length ? groups.map(g => `<tr><td>${escapeHtml(g.group)}</td><td>${escapeHtml(g.teamName)}</td><td>${escapeHtml(g.currentStation || '')}</td><td>${escapeHtml(g.completedCount ?? 0)}/5</td><td>${escapeHtml(g.photoCount ?? 0)}/3</td><td>${formatTime(g.lastSave)}</td><td><span class="badge ${g.status === 'Complete' ? 'ok' : ''}">${escapeHtml(g.status || '')}</span></td></tr>`).join('') : '<tr><td colspan="7">No groups found yet.</td></tr>'}</tbody>
       </table></div>
       <hr />
