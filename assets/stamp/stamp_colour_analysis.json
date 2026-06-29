@@ -1,0 +1,67 @@
+{
+  "source": "/mnt/data/futuristic_riverside_park_with_vibrant_market.png",
+  "order_least_area_first": [
+    1,
+    2,
+    0,
+    4,
+    3
+  ],
+  "clusters": [
+    {
+      "stage": 1,
+      "cluster_id": 1,
+      "pixel_count": 220389,
+      "percentage": 14.014949177375538,
+      "palette_rgb": [
+        149,
+        185,
+        151
+      ]
+    },
+    {
+      "stage": 2,
+      "cluster_id": 2,
+      "pixel_count": 255833,
+      "percentage": 16.26889950449213,
+      "palette_rgb": [
+        122,
+        138,
+        92
+      ]
+    },
+    {
+      "stage": 3,
+      "cluster_id": 0,
+      "pixel_count": 314365,
+      "percentage": 19.991058982733534,
+      "palette_rgb": [
+        241,
+        215,
+        126
+      ]
+    },
+    {
+      "stage": 4,
+      "cluster_id": 4,
+      "pixel_count": 368075,
+      "percentage": 23.406578452021204,
+      "palette_rgb": [
+        38,
+        70,
+        35
+      ]
+    },
+    {
+      "stage": 5,
+      "cluster_id": 3,
+      "pixel_count": 413866,
+      "percentage": 26.31851388337759,
+      "palette_rgb": [
+        116,
+        91,
+        36
+      ]
+    }
+  ]
+}

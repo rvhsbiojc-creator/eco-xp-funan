@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Eco XP: Operation Funan Sustainability Run</title>
+  <meta name="description" content="Eco XP: Operation Funan Sustainability Run mobile game" />
+  <link rel="stylesheet" href="styles.css?v=1.6.3" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar" aria-label="Application header">
+      <div class="brand-lockup">
+        <div class="bob-mini" aria-hidden="true"><span></span></div>
+        <div>
+          <div class="eyebrow">Eco XP</div>
+          <div class="brand-title">Operation Funan Sustainability Run</div>
+        </div>
+      </div>
+    </header>
+
+    <main id="app" class="app-main" aria-live="polite"></main>
+
+    <div id="toastHost" class="toast-host" aria-live="assertive"></div>
+  </div>
+
+  <template id="loadingTemplate">
+    <div class="loading-card" role="status" aria-live="polite">
+      <div class="bob-loader" aria-hidden="true"><span></span></div>
+      <div>
+        <h2>Loading…</h2>
+        <p id="loadingText">B.O.B. is processing…</p>
+      </div>
+    </div>
+  </template>
+
+  <script src="app.js?v=1.6.3"></script>
+</body>
+</html>
